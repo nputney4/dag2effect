@@ -1,3 +1,21 @@
+#' Simulate data under an intervention
+#'
+#' @param N Number of observations to simulate.
+#' @param T Number of time points.
+#' @param H Baseline-variable adjacency or coefficient matrix.
+#' @param B Within-time exposure-variable matrix.
+#' @param Gamma Baseline-to-exposure coefficient matrix.
+#' @param A Lagged exposure-variable coefficient array.
+#' @param intervention Named intervention values.
+#' @param type_X Named or ordered exposure-variable types.
+#' @param type_G Named or ordered baseline-variable types.
+#' @param L Number of lags.
+#' @param seed Optional random seed.
+#' @param add_time_suffix Whether to append time suffixes to output columns.
+#' @param ... Additional arguments passed to the data-generating functions.
+#'
+#' @returns A simulated wide data frame.
+#' @export
 calculate_intervention_distribution <- function(N,
                                                 T,
                                                 H,
@@ -11,13 +29,6 @@ calculate_intervention_distribution <- function(N,
                                                 seed = NULL,
                                                 add_time_suffix = NULL,
                                                 ...) {
-  if (!exists("eta_to_obs", mode = "function")) {
-    stop("eta_to_obs() not found. Source simulate_mixed_data_from_adjacency_matrices.R first.")
-  }
-  if (!exists("data_to_wide_df", mode = "function")) {
-    stop("data_to_wide_df() not found. Source simulate_mixed_data_from_adjacency_matrices.R first.")
-  }
-
   if (!is.null(seed)) {
     set.seed(seed)
   }
@@ -105,7 +116,7 @@ calculate_intervention_distribution <- function(N,
 
       if (length(parent_idx) == 0) {
         G[, k] <- do.call(
-          eta_to_obs,
+          randMixDAG::eta_to_obs,
           c(list(root = TRUE, type = g_type, N = N,
                  node_name = g_name, dist_params = dist_params), dist_args)
         )
@@ -113,7 +124,7 @@ calculate_intervention_distribution <- function(N,
         parent_values <- matrix(G[, parent_idx, drop = FALSE], nrow = N, ncol = length(parent_idx))
         eta_k <- parent_values %*% matrix(H[k, parent_idx], ncol = 1)
         G[, k] <- do.call(
-          eta_to_obs,
+          randMixDAG::eta_to_obs,
           c(list(root = FALSE, type = g_type, eta = eta_k, N = N,
                  node_name = g_name, dist_params = dist_params), dist_args)
         )
@@ -162,7 +173,7 @@ calculate_intervention_distribution <- function(N,
 
         x_type <- lookup_type(x_base, type_X, j)
         X[, t, j] <- do.call(
-          eta_to_obs,
+          randMixDAG::eta_to_obs,
           c(list(root = FALSE, type = x_type, eta = eta_tj, N = N,
                  node_name = x_node, dist_params = dist_params), dist_args)
         )
@@ -170,5 +181,13 @@ calculate_intervention_distribution <- function(N,
     }
   }
 
-  data_to_wide_df(X, G, H, B, Gamma, A, add_time_suffix = add_time_suffix)
+  randMixDAG::data_to_wide_df(
+    X,
+    G,
+    H,
+    B,
+    Gamma,
+    A,
+    add_time_suffix = add_time_suffix
+  )
 }

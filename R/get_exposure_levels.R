@@ -1,3 +1,12 @@
+#' Get intervention levels for an exposure
+#'
+#' @param data Data frame containing the exposure.
+#' @param exposure Name of the exposure column.
+#' @param exposure_type Exposure type, including `"binary"` for binary exposures.
+#' @param exposure_quantiles Quantiles used for non-binary exposures.
+#'
+#' @returns A named vector containing `low` and `high` intervention levels.
+#' @export
 get_exposure_levels <- function(
     data,
     exposure,

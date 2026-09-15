@@ -1,3 +1,9 @@
+#' Map a variable type to a model family
+#'
+#' @param var_type Variable type.
+#'
+#' @returns A model-family name.
+#' @export
 get_dist_from_var_type <- function(var_type) {
   if (var_type == "continuous") return("gaussian")
   if (var_type == "binary") return("binomial")
@@ -5,6 +11,14 @@ get_dist_from_var_type <- function(var_type) {
   stop(paste0("Unknown variable type: ", var_type))
 }
 
+#' Extract a named block from an adjacency matrix
+#'
+#' @param adj_coeffs Adjacency or coefficient matrix.
+#' @param row_nodes Desired row names.
+#' @param col_nodes Desired column names.
+#'
+#' @returns A matrix containing the requested block.
+#' @export
 subset_adj_block <- function(adj_coeffs, row_nodes, col_nodes) {
   out <- matrix(
     0,
@@ -23,6 +37,15 @@ subset_adj_block <- function(adj_coeffs, row_nodes, col_nodes) {
   out
 }
 
+#' Fit a conditional model for one graph node
+#'
+#' @param df Data frame containing the node and its parents.
+#' @param response Response variable name.
+#' @param rhs Right-hand side of the model formula.
+#' @param var_type Variable type.
+#'
+#' @returns A fitted model object.
+#' @export
 fit_conditional_model <- function(df, response, rhs, var_type) {
   fma <- stats::as.formula(paste(response, "~", rhs))
 
@@ -44,6 +67,13 @@ fit_conditional_model <- function(df, response, rhs, var_type) {
   stats::glm(fma, family = get_dist_from_var_type(var_type), data = df)
 }
 
+#' Extract non-intercept model coefficients
+#'
+#' @param mdl Fitted model.
+#' @param var_type Variable type.
+#'
+#' @returns A named coefficient vector.
+#' @export
 extract_model_coeffs <- function(mdl, var_type) {
   coeffs <- stats::coef(mdl)
   if (var_type != "ordinal") {
@@ -53,6 +83,13 @@ extract_model_coeffs <- function(mdl, var_type) {
   coeffs
 }
 
+#' Extract distribution parameters from a fitted model
+#'
+#' @param mdl Fitted model.
+#' @param var_type Variable type.
+#'
+#' @returns A list of node distribution parameters.
+#' @export
 extract_model_dist_params <- function(mdl, var_type) {
   out <- list(
     node_intercept = 0,
@@ -84,6 +121,14 @@ extract_model_dist_params <- function(mdl, var_type) {
   out
 }
 
+#' Fit node models over a causal DAG
+#'
+#' @param df Data frame used for model fitting.
+#' @param dag Causal DAG accepted by `caugi`.
+#' @param var_types Named vector of node types.
+#'
+#' @returns Fitted models, coefficients, and distribution parameters.
+#' @export
 fit_adj_coeffs_from_dag <- function(df, dag, var_types) {
   vars_in_order <- caugi::topological_sort(dag)
   adj <- t(caugi::as_adjacency(dag)) # rows = child, cols = parent
@@ -145,6 +190,15 @@ fit_adj_coeffs_from_dag <- function(df, dag, var_types) {
   )
 }
 
+#' Extract lagged simulation matrices
+#'
+#' @param adj_coeffs Coefficient matrix.
+#' @param vars_in_order Nodes in topological order.
+#' @param g_nodes Baseline node names.
+#' @param x_nodes Exposure node names.
+#'
+#' @returns A list of lagged simulation matrices.
+#' @export
 extract_matrices_lagged <- function(adj_coeffs, vars_in_order, g_nodes, x_nodes) {
   g_order <- intersect(vars_in_order, g_nodes)
   if (length(g_order) == 0) g_order <- g_nodes
@@ -192,6 +246,15 @@ extract_matrices_lagged <- function(adj_coeffs, vars_in_order, g_nodes, x_nodes)
   list(H = H, Gamma = Gamma, B = B, A = A, L = L, g_order = g_order, x_order = x_order)
 }
 
+#' Extract full-time simulation matrices
+#'
+#' @param adj_coeffs Coefficient matrix.
+#' @param vars_in_order Nodes in topological order.
+#' @param g_nodes Baseline node names.
+#' @param x_nodes Exposure node names.
+#'
+#' @returns A list of full-time simulation matrices.
+#' @export
 extract_matrices_full_time <- function(adj_coeffs, vars_in_order, g_nodes, x_nodes) {
   g_order <- intersect(vars_in_order, g_nodes)
   if (length(g_order) == 0) g_order <- g_nodes
@@ -208,6 +271,16 @@ extract_matrices_full_time <- function(adj_coeffs, vars_in_order, g_nodes, x_nod
   list(H = H, Gamma = Gamma, B = B, A = NULL, L = 0L, g_order = g_order, x_order = x_time_order)
 }
 
+#' Parameterize a DAG from observed data
+#'
+#' @param df Data frame used for model fitting.
+#' @param dag Causal DAG accepted by `caugi`.
+#' @param var_G Named baseline-variable types.
+#' @param var_X Named exposure-variable types.
+#' @param graph_type Either `"lagged"` or `"full_time"`.
+#'
+#' @returns A parameterized DAG and simulation matrices.
+#' @export
 data2dag <- function(df,
                                        dag,
                                        var_G,

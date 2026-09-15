@@ -1,3 +1,15 @@
+#' Estimate intervention means using the parametric g-formula
+#'
+#' @param data Data frame containing the exposure and outcome.
+#' @param exposure Name of the exposure column.
+#' @param outcome Name of the outcome column.
+#' @param adjustment_set Covariates used in the outcome model.
+#' @param exposure_type Exposure type.
+#' @param outcome_type Outcome type.
+#' @param exposure_quantiles Quantiles used for non-binary exposures.
+#'
+#' @returns A list containing the estimated low- and high-intervention means.
+#' @export
 estimate_gformula <- function(
     data,
     exposure,
@@ -90,14 +102,25 @@ estimate_gformula <- function(
   }
 
   list(
-    estimate = mu_high - mu_low,
     mu_low = mu_low,
-    mu_high = mu_high,
-    a_low = levels["low"],
-    a_high = levels["high"]
+    mu_high = mu_high
   )
 }
 
+#' Bootstrap intervention means from the parametric g-formula
+#'
+#' @param data Data frame containing the exposure and outcome.
+#' @param exposure Name of the exposure column.
+#' @param outcome Name of the outcome column.
+#' @param exposure_type Exposure type.
+#' @param outcome_type Outcome type.
+#' @param adjustment_sets Named list of adjustment sets.
+#' @param exposure_quantiles Quantiles used for non-binary exposures.
+#' @param B Number of bootstrap samples.
+#'
+#' @returns A named list containing point estimates, bootstrap intervention
+#'   means, and confidence intervals for each intervention mean.
+#' @export
 bootstrap_gformula <- function(
     data,
     exposure,
@@ -108,7 +131,6 @@ bootstrap_gformula <- function(
     exposure_quantiles = c(0.20, 0.80),
     B = 100
 ) {
-
   # ---------------------------------------------------------
   # Point estimates
   # ---------------------------------------------------------
@@ -126,8 +148,10 @@ bootstrap_gformula <- function(
           exposure_type = exposure_type,
           outcome_type = outcome_type,
           exposure_quantiles = exposure_quantiles
-        )$estimate,
-        error = function(e) NA_real_
+        ),
+        error = function(e) {
+          list(mu_low = NA_real_, mu_high = NA_real_)
+        }
       )
     }
   )
@@ -139,10 +163,8 @@ bootstrap_gformula <- function(
   # adjustment strategies.
   # ---------------------------------------------------------
 
-  boot_estimates <- lapply(
-    adjustment_sets,
-    function(x) rep(NA_real_, B)
-  )
+  boot_mu_low <- lapply(adjustment_sets, function(x) rep(NA_real_, B))
+  boot_mu_high <- lapply(adjustment_sets, function(x) rep(NA_real_, B))
 
   for (b in seq_len(B)) {
 
@@ -157,7 +179,7 @@ bootstrap_gformula <- function(
 
     for (strategy in names(adjustment_sets)) {
 
-      boot_estimates[[strategy]][b] <- tryCatch({
+      boot_estimate <- tryCatch({
 
         estimate_gformula(
           data = boot_data,
@@ -167,23 +189,39 @@ bootstrap_gformula <- function(
           exposure_type = exposure_type,
           outcome_type = outcome_type,
           exposure_quantiles = exposure_quantiles
-        )$estimate
+        )
 
       }, error = function(e) {
-        NA_real_
+        list(mu_low = NA_real_, mu_high = NA_real_)
       })
+
+      boot_mu_low[[strategy]][b] <- boot_estimate$mu_low
+      boot_mu_high[[strategy]][b] <- boot_estimate$mu_high
     }
   }
 
-  # Confidence intervals and summary for each strategy
+  # Confidence intervals and summary for each intervention mean
   results <- lapply(names(adjustment_sets), function(strategy) {
 
-    estimates <- boot_estimates[[strategy]]
-    estimates <- estimates[is.finite(estimates)]
+    valid_estimates <- is.finite(boot_mu_low[[strategy]]) &
+      is.finite(boot_mu_high[[strategy]])
+    low_estimates <- boot_mu_low[[strategy]][valid_estimates]
+    high_estimates <- boot_mu_high[[strategy]][valid_estimates]
 
-    ci <- if (length(estimates) > 0) {
+    low_ci <- if (length(low_estimates) > 0) {
       stats::quantile(
-        estimates,
+        low_estimates,
+        probs = c(0.025, 0.975),
+        names = FALSE,
+        na.rm = TRUE
+      )
+    } else {
+      c(NA_real_, NA_real_)
+    }
+
+    high_ci <- if (length(high_estimates) > 0) {
+      stats::quantile(
+        high_estimates,
         probs = c(0.025, 0.975),
         names = FALSE,
         na.rm = TRUE
@@ -194,11 +232,15 @@ bootstrap_gformula <- function(
 
     list(
       adjustment = strategy,
-      estimate = point_estimates[[strategy]],
-      ci_lower = ci[1],
-      ci_upper = ci[2],
-      ci_width = ci[2] - ci[1],
-      n_boot_success = length(estimates)
+      mu_low = point_estimates[[strategy]]$mu_low,
+      mu_high = point_estimates[[strategy]]$mu_high,
+      bootstrap_mu_low = low_estimates,
+      bootstrap_mu_high = high_estimates,
+      mu_low_ci_lower = low_ci[1],
+      mu_low_ci_upper = low_ci[2],
+      mu_high_ci_lower = high_ci[1],
+      mu_high_ci_upper = high_ci[2],
+      n_boot_success = min(length(low_estimates), length(high_estimates))
     )
   })
 
