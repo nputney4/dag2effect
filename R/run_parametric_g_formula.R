@@ -7,6 +7,8 @@
 #' @param exposure_type Exposure type.
 #' @param outcome_type Outcome type.
 #' @param exposure_quantiles Quantiles used for non-binary exposures.
+#' @param exposure_levels Optional named vector with fixed `low` and `high`
+#'   intervention values.
 #'
 #' @returns A list containing the estimated low- and high-intervention means.
 #' @export
@@ -17,15 +19,23 @@ estimate_gformula <- function(
     adjustment_set,
     exposure_type,
     outcome_type,
-    exposure_quantiles = c(0.20, 0.80)
+    exposure_quantiles = c(0.20, 0.80),
+    exposure_levels = NULL
 ) {
 
-  levels <- get_exposure_levels(
-    data = data,
-    exposure = exposure,
-    exposure_type = exposure_type,
-    exposure_quantiles = exposure_quantiles
-  )
+  levels <- if (is.null(exposure_levels)) {
+    get_exposure_levels(
+      data = data,
+      exposure = exposure,
+      exposure_type = exposure_type,
+      exposure_quantiles = exposure_quantiles
+    )
+  } else {
+    if (!all(c("low", "high") %in% names(exposure_levels))) {
+      stop("exposure_levels must contain named low and high values.")
+    }
+    exposure_levels[c("low", "high")]
+  }
 
   # Outcome model:
   # outcome is a specific full-time node, and adjustment_set
@@ -116,6 +126,8 @@ estimate_gformula <- function(
 #' @param outcome_type Outcome type.
 #' @param adjustment_sets Named list of adjustment sets.
 #' @param exposure_quantiles Quantiles used for non-binary exposures.
+#' @param exposure_levels Optional named vector with fixed `low` and `high`
+#'   intervention values shared by all bootstrap samples.
 #' @param B Number of bootstrap samples.
 #'
 #' @returns A named list containing point estimates, bootstrap intervention
@@ -129,6 +141,7 @@ bootstrap_gformula <- function(
     outcome_type,
     adjustment_sets,
     exposure_quantiles = c(0.20, 0.80),
+    exposure_levels = NULL,
     B = 100
 ) {
   # ---------------------------------------------------------
@@ -147,7 +160,8 @@ bootstrap_gformula <- function(
           adjustment_set = adjustment_set,
           exposure_type = exposure_type,
           outcome_type = outcome_type,
-          exposure_quantiles = exposure_quantiles
+          exposure_quantiles = exposure_quantiles,
+          exposure_levels = exposure_levels
         ),
         error = function(e) {
           list(mu_low = NA_real_, mu_high = NA_real_)
@@ -188,7 +202,8 @@ bootstrap_gformula <- function(
           adjustment_set = adjustment_sets[[strategy]],
           exposure_type = exposure_type,
           outcome_type = outcome_type,
-          exposure_quantiles = exposure_quantiles
+          exposure_quantiles = exposure_quantiles,
+          exposure_levels = exposure_levels
         )
 
       }, error = function(e) {

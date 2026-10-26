@@ -11,7 +11,8 @@ estimate_gformula(
   adjustment_set,
   exposure_type,
   outcome_type,
-  exposure_quantiles = c(0.2, 0.8)
+  exposure_quantiles = c(0.2, 0.8),
+  exposure_levels = NULL
 )
 }
 \arguments{
@@ -28,6 +29,9 @@ estimate_gformula(
 \item{outcome_type}{Outcome type.}
 
 \item{exposure_quantiles}{Quantiles used for non-binary exposures.}
+
+\item{exposure_levels}{Optional named vector with fixed \code{low} and \code{high}
+intervention values.}
 }
 \value{
 A list containing the estimated low- and high-intervention means.
